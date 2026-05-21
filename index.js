@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const bcrypt = require("bcryptjs");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 dotenv.config();
@@ -25,27 +26,104 @@ async function run() {
     await client.connect();
 
     const db = client.db("mediqueue");
+
     const tutorCollection = db.collection("tutors");
     const bookingCollection = db.collection("bookings");
+    const userCollection = db.collection("users");
+
+    console.log("MongoDB Connected");
 
     /* =========================
-        CREATE TUTOR (FULL FIXED)
+        USER REGISTER
+    ========================== */
+    app.post("/users/register", async (req, res) => {
+      try {
+        const { name, email, image, password } = req.body;
+
+        if (!name || !email || !password) {
+          return res.status(400).send({ message: "All fields required" });
+        }
+
+        const existingUser = await userCollection.findOne({ email });
+
+        if (existingUser) {
+          return res.status(400).send({ message: "User already exists" });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser = {
+          name,
+          email,
+          image: image || "",
+          password: hashedPassword,
+          provider: "email",
+          createdAt: new Date(),
+        };
+
+        const result = await userCollection.insertOne(newUser);
+
+        res.send({ ...newUser, _id: result.insertedId });
+
+      } catch (err) {
+        console.log(err);
+        res.status(500).send({ message: "Signup failed" });
+      }
+    });
+
+    /* =========================
+        SOCIAL LOGIN
+    ========================== */
+    app.post("/users/social-login", async (req, res) => {
+      try {
+        const { email, name, image, provider } = req.body;
+
+        if (!email) {
+          return res.status(400).send({ message: "Email required" });
+        }
+
+        const existingUser = await userCollection.findOne({ email });
+
+        if (existingUser) {
+          return res.send(existingUser);
+        }
+
+        const newUser = {
+          email,
+          name,
+          image,
+          provider,
+          createdAt: new Date(),
+        };
+
+        const result = await userCollection.insertOne(newUser);
+
+        res.send({ ...newUser, _id: result.insertedId });
+
+      } catch (err) {
+        console.log(err);
+        res.status(500).send({ message: "Social login failed" });
+      }
+    });
+
+    /* =========================
+        CREATE TUTOR
     ========================== */
     app.post("/tutor", async (req, res) => {
       try {
         const tutor = {
           tutorName: req.body.tutorName,
-          photo: req.body.photo, // ✅ FIXED (image was missing before)
+          photo: req.body.photo,
           subject: req.body.subject,
           availability: req.body.availability,
           hourlyFee: Number(req.body.hourlyFee),
           totalSlot: Number(req.body.totalSlot),
-          sessionStartDate: req.body.sessionStartDate,
+          sessionStartDate: new Date(req.body.sessionStartDate),
           institution: req.body.institution,
           experience: req.body.experience,
           location: req.body.location,
           teachingMode: req.body.teachingMode,
-          creatorEmail: req.body.creatorEmail, // important
+          creatorEmail: req.body.creatorEmail,
           createdAt: new Date(),
         };
 
@@ -55,6 +133,7 @@ async function run() {
 
         const result = await tutorCollection.insertOne(tutor);
         res.send(result);
+
       } catch (err) {
         console.log(err);
         res.status(500).send({ message: "Failed to create tutor" });
@@ -62,81 +141,132 @@ async function run() {
     });
 
     /* =========================
-        GET ALL TUTORS
+        GET ALL TUTORS + FILTER
     ========================== */
     app.get("/tutor", async (req, res) => {
-      const result = await tutorCollection
-        .find()
-        .sort({ createdAt: -1 })
-        .toArray();
+      try {
+        const { search, startDate, endDate } = req.query;
 
-      res.send(result);
+        let query = {};
+
+        if (search) {
+          query.tutorName = {
+            $regex: search,
+            $options: "i",
+          };
+        }
+
+        if (startDate || endDate) {
+          query.sessionStartDate = {};
+
+          if (startDate) {
+            query.sessionStartDate.$gte = new Date(startDate);
+          }
+
+          if (endDate) {
+            query.sessionStartDate.$lte = new Date(endDate);
+          }
+        }
+
+        const result = await tutorCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
+
+      } catch (err) {
+        console.log(err);
+        res.status(500).send({ message: "Failed to fetch tutors" });
+      }
     });
 
     /* =========================
         SINGLE TUTOR
     ========================== */
     app.get("/tutor/:id", async (req, res) => {
-      const tutor = await tutorCollection.findOne({
-        _id: new ObjectId(req.params.id),
-      });
+      try {
+        const tutor = await tutorCollection.findOne({
+          _id: new ObjectId(req.params.id),
+        });
 
-      if (!tutor) {
-        return res.status(404).send({ message: "Tutor not found" });
+        if (!tutor) {
+          return res.status(404).send({ message: "Tutor not found" });
+        }
+
+        res.send(tutor);
+
+      } catch (err) {
+        res.status(500).send({ message: "Server error" });
       }
-
-      res.send(tutor);
     });
 
     /* =========================
-        MY TUTORS
+        MY TUTORS BY EMAIL
     ========================== */
     app.get("/my-tutors/:email", async (req, res) => {
-      const result = await tutorCollection
-        .find({ creatorEmail: req.params.email })
-        .sort({ createdAt: -1 })
-        .toArray();
+      try {
+        const email = req.params.email;
 
-      res.send(result);
+        const result = await tutorCollection
+          .find({ creatorEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
+
+      } catch (err) {
+        console.log(err);
+        res.status(500).send({ message: "Failed to fetch tutors" });
+      }
     });
 
     /* =========================
         UPDATE TUTOR
     ========================== */
     app.patch("/tutor/:id", async (req, res) => {
-      const result = await tutorCollection.updateOne(
-        { _id: new ObjectId(req.params.id) },
-        { $set: req.body }
-      );
+      try {
+        const id = req.params.id;
+        const updatedData = req.body;
 
-      res.send(result);
+        const result = await tutorCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updatedData }
+        );
+
+        res.send(result);
+
+      } catch (err) {
+        console.log(err);
+        res.status(500).send({ message: "Update failed" });
+      }
     });
 
     /* =========================
         DELETE TUTOR
     ========================== */
     app.delete("/tutor/:id", async (req, res) => {
-      const result = await tutorCollection.deleteOne({
-        _id: new ObjectId(req.params.id),
-      });
+      try {
+        const id = req.params.id;
 
-      res.send(result);
+        const result = await tutorCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        res.send(result);
+
+      } catch (err) {
+        console.log(err);
+        res.status(500).send({ message: "Delete failed" });
+      }
     });
 
     /* =========================
-        BOOK SESSION
+        BOOKINGS
     ========================== */
     app.post("/bookings", async (req, res) => {
       try {
         const data = req.body;
-
-        const tutor = await tutorCollection.findOne({
-          _id: new ObjectId(data.tutorId),
-        });
-
-        if (!tutor) {
-          return res.status(404).send({ message: "Tutor not found" });
-        }
 
         const exists = await bookingCollection.findOne({
           tutorId: data.tutorId,
@@ -144,9 +274,7 @@ async function run() {
         });
 
         if (exists) {
-          return res.status(400).send({
-            message: "Already booked",
-          });
+          return res.status(400).send({ message: "Already booked" });
         }
 
         const booking = {
@@ -163,6 +291,7 @@ async function run() {
         );
 
         res.send(result);
+
       } catch (err) {
         console.log(err);
         res.status(500).send({ message: "Booking failed" });
@@ -170,7 +299,7 @@ async function run() {
     });
 
     /* =========================
-        BOOKINGS
+        BOOKINGS BY EMAIL
     ========================== */
     app.get("/bookings/email/:email", async (req, res) => {
       const result = await bookingCollection
@@ -193,17 +322,12 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/tutor", async (req, res) => {
-  const result = await tutorCollection.find().limit(6).toArray();
-  res.send(result);
-});
-
     app.get("/", (req, res) => {
       res.send("Server Running");
     });
 
     await client.db("admin").command({ ping: 1 });
-    console.log("MongoDB Connected");
+
   } catch (err) {
     console.log(err);
   }
