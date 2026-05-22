@@ -23,8 +23,8 @@ const client = new MongoClient(uri, {
 });
 
 const JWKS = createRemoteJWKSet(
-  new URL("http://localhost:3000/api/auth/jwks")
-)
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
+);
 
 const verifyToken = async (req, res, next) => {
   const authHeader = req?.headers.authorization
@@ -47,7 +47,7 @@ const verifyToken = async (req, res, next) => {
 };
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("mediqueue");
 
@@ -57,9 +57,7 @@ async function run() {
 
     console.log("MongoDB Connected");
 
-    /* =========================
-        USER REGISTER
-    ========================== */
+    
     app.post("/users/register", async (req, res) => {
       try {
         const { name, email, image, password } = req.body;
@@ -95,9 +93,7 @@ async function run() {
       }
     });
 
-    /* =========================
-        SOCIAL LOGIN
-    ========================== */
+  
     app.post("/users/social-login", async (req, res) => {
       try {
         const { email, name, image, provider } = req.body;
@@ -352,7 +348,7 @@ async function run() {
       res.send("Server Running");
     });
 
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
 
   } catch (err) {
     console.log(err);
