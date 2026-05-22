@@ -3,6 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const bcrypt = require("bcryptjs");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 
 dotenv.config();
 
@@ -21,6 +22,29 @@ const client = new MongoClient(uri, {
   },
 });
 
+const JWKS = createRemoteJWKSet(
+  new URL("http://localhost:3000/api/auth/jwks")
+)
+
+const verifyToken = async (req, res, next) => {
+  const authHeader = req?.headers.authorization
+  if(!authHeader){
+    return res.status(401).json({message: "Unauthorized"});
+  }
+  const token = authHeader.split(" ")[1]
+  if(!token){
+    return res.status(401).json({message: "Unauthorized"});
+  }
+ 
+  try{
+    const {payload} = await jwtVerify(token, JWKS)
+    console.log(payload)
+     next()
+
+  } catch (error) {
+    return res.status(403).json({message: "Forbidden"});
+  }
+};
 async function run() {
   try {
     await client.connect();
@@ -109,7 +133,7 @@ async function run() {
     /* =========================
         CREATE TUTOR
     ========================== */
-    app.post("/tutor", async (req, res) => {
+    app.post("/tutor", verifyToken, async (req, res) => {
       try {
         const tutor = {
           tutorName: req.body.tutorName,
@@ -181,10 +205,12 @@ async function run() {
       }
     });
 
+   
+
     /* =========================
         SINGLE TUTOR
     ========================== */
-    app.get("/tutor/:id", async (req, res) => {
+    app.get("/tutor/:id", verifyToken, async (req, res) => {
       try {
         const tutor = await tutorCollection.findOne({
           _id: new ObjectId(req.params.id),
@@ -204,7 +230,7 @@ async function run() {
     /* =========================
         MY TUTORS BY EMAIL
     ========================== */
-    app.get("/my-tutors/:email", async (req, res) => {
+    app.get("/my-tutors/:email", verifyToken, async (req, res) => {
       try {
         const email = req.params.email;
 
@@ -224,7 +250,7 @@ async function run() {
     /* =========================
         UPDATE TUTOR
     ========================== */
-    app.patch("/tutor/:id", async (req, res) => {
+    app.patch("/tutor/:id", verifyToken, async (req, res) => {
       try {
         const id = req.params.id;
         const updatedData = req.body;
@@ -245,7 +271,7 @@ async function run() {
     /* =========================
         DELETE TUTOR
     ========================== */
-    app.delete("/tutor/:id", async (req, res) => {
+    app.delete("/tutor/:id", verifyToken, async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -264,7 +290,7 @@ async function run() {
     /* =========================
         BOOKINGS
     ========================== */
-    app.post("/bookings", async (req, res) => {
+    app.post("/bookings", verifyToken, async (req, res) => {
       try {
         const data = req.body;
 
@@ -301,7 +327,7 @@ async function run() {
     /* =========================
         BOOKINGS BY EMAIL
     ========================== */
-    app.get("/bookings/email/:email", async (req, res) => {
+    app.get("/bookings/email/:email", verifyToken, async (req, res) => {
       const result = await bookingCollection
         .find({ studentEmail: req.params.email })
         .sort({ bookedAt: -1 })
@@ -313,7 +339,7 @@ async function run() {
     /* =========================
         CANCEL BOOKING
     ========================== */
-    app.patch("/booking/cancel/:id", async (req, res) => {
+    app.patch("/booking/cancel/:id", verifyToken, async (req, res) => {
       const result = await bookingCollection.updateOne(
         { _id: new ObjectId(req.params.id) },
         { $set: { bookStatus: "Cancelled" } }
