@@ -160,39 +160,20 @@ async function run() {
       }
     });
 /* =========================
-    GET ALL TUTORS + FILTER (FIXED)
+    GET ALL TUTORS (NAME FILTER ONLY)
 ========================== */
 app.get("/tutor", async (req, res) => {
   try {
-    const { search, startDate, endDate } = req.query;
+    const { search } = req.query;
 
     let query = {};
 
-    // SEARCH FILTER
+    // NAME SEARCH ONLY
     if (search) {
       query.tutorName = {
         $regex: search,
         $options: "i",
       };
-    }
-
-    // DATE FILTER (FIXED - NO TIMEZONE BUG)
-    if (startDate || endDate) {
-      query.sessionStartDate = {};
-
-      // START DATE (beginning of day)
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        query.sessionStartDate.$gte = start;
-      }
-
-      // END DATE (end of day safe fix)
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        query.sessionStartDate.$lte = end;
-      }
     }
 
     const result = await tutorCollection
