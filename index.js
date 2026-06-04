@@ -160,7 +160,7 @@ async function run() {
       }
     });
 /* =========================
-    GET ALL TUTORS + FILTER
+    GET ALL TUTORS + FILTER (FIXED)
 ========================== */
 app.get("/tutor", async (req, res) => {
   try {
@@ -176,21 +176,22 @@ app.get("/tutor", async (req, res) => {
       };
     }
 
-    // DATE FILTER (FIXED VERSION)
+    // DATE FILTER (FIXED - NO TIMEZONE BUG)
     if (startDate || endDate) {
       query.sessionStartDate = {};
 
-      // start date (inclusive)
+      // START DATE (beginning of day)
       if (startDate) {
-        query.sessionStartDate.$gte = new Date(startDate);
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        query.sessionStartDate.$gte = start;
       }
 
-      // end date (inclusive fix using next-day exclusive)
+      // END DATE (end of day safe fix)
       if (endDate) {
-        const nextDay = new Date(endDate);
-        nextDay.setDate(nextDay.getDate() + 1);
-
-        query.sessionStartDate.$lt = nextDay;
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.sessionStartDate.$lte = end;
       }
     }
 
@@ -206,7 +207,6 @@ app.get("/tutor", async (req, res) => {
     res.status(500).send({ message: "Failed to fetch tutors" });
   }
 });
-   
 
     /* =========================
         SINGLE TUTOR
