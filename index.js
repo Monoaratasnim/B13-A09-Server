@@ -168,7 +168,7 @@ app.get("/tutor", async (req, res) => {
 
     let query = {};
 
-    // Search by tutor name
+    // SEARCH FILTER
     if (search) {
       query.tutorName = {
         $regex: search,
@@ -176,19 +176,21 @@ app.get("/tutor", async (req, res) => {
       };
     }
 
-    // Filter by Session Date
+    // DATE FILTER (FIXED VERSION)
     if (startDate || endDate) {
       query.sessionStartDate = {};
 
+      // start date (inclusive)
       if (startDate) {
         query.sessionStartDate.$gte = new Date(startDate);
       }
 
+      // end date (inclusive fix using next-day exclusive)
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        const nextDay = new Date(endDate);
+        nextDay.setDate(nextDay.getDate() + 1);
 
-        query.sessionStartDate.$lte = end;
+        query.sessionStartDate.$lt = nextDay;
       }
     }
 
