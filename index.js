@@ -159,51 +159,51 @@ async function run() {
         res.status(500).send({ message: "Failed to create tutor" });
       }
     });
+/* =========================
+    GET ALL TUTORS + FILTER
+========================== */
+app.get("/tutor", async (req, res) => {
+  try {
+    const { search, startDate, endDate } = req.query;
 
-    /* =========================
-        GET ALL TUTORS + FILTER
-    ========================== */
-    app.get("/tutor", async (req, res) => {
-      try {
-        const { search, startDate, endDate } = req.query;
+    let query = {};
 
-        let query = {};
+    // Search by tutor name
+    if (search) {
+      query.tutorName = {
+        $regex: search,
+        $options: "i",
+      };
+    }
 
-        if (search) {
-          query.tutorName = {
-            $regex: search,
-            $options: "i",
-          };
-        }
+    // Filter by Session Date
+    if (startDate || endDate) {
+      query.sessionStartDate = {};
 
-      if (startDate || endDate) {
-  query.createdAt = {};
-
-  if (startDate) {
-    query.createdAt.$gte = new Date(startDate);
-  }
-
-  if (endDate) {
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-
-    query.createdAt.$lte = end;
-  }
-}
-
-        const result = await tutorCollection
-          .find(query)
-          .sort({ createdAt: -1 })
-          .toArray();
-
-        res.send(result);
-
-      } catch (err) {
-        console.log(err);
-        res.status(500).send({ message: "Failed to fetch tutors" });
+      if (startDate) {
+        query.sessionStartDate.$gte = new Date(startDate);
       }
-    });
 
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+
+        query.sessionStartDate.$lte = end;
+      }
+    }
+
+    const result = await tutorCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.send(result);
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({ message: "Failed to fetch tutors" });
+  }
+});
    
 
     /* =========================
