@@ -176,17 +176,20 @@ async function run() {
           };
         }
 
-        if (startDate || endDate) {
-          query.sessionStartDate = {};
+      if (startDate || endDate) {
+  query.createdAt = {};
 
-          if (startDate) {
-            query.sessionStartDate.$gte = new Date(startDate);
-          }
+  if (startDate) {
+    query.createdAt.$gte = new Date(startDate);
+  }
 
-          if (endDate) {
-            query.sessionStartDate.$lte = new Date(endDate);
-          }
-        }
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    query.createdAt.$lte = end;
+  }
+}
 
         const result = await tutorCollection
           .find(query)
